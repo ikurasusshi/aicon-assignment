@@ -43,6 +43,14 @@ func (m *MockItemRepository) Delete(ctx context.Context, id int64) error {
 	return args.Error(0)
 }
 
+func (m *MockItemRepository) Update(ctx context.Context, item *entity.Item) (*entity.Item, error) {
+	args := m.Called(ctx, item)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entity.Item), args.Error(1)
+}
+
 func (m *MockItemRepository) GetSummaryByCategory(ctx context.Context) (map[string]int, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -446,4 +454,62 @@ func TestItemUsecase_GetCategorySummary(t *testing.T) {
 			mockRepo.AssertExpectations(t)
 		})
 	}
+}
+
+
+func TestItemUsecase_PatchItem(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("正常系: nameのみ更新", func(t *testing.T) {
+		mockRepo := new(MockItemRepository)
+		usecase := NewItemUsecase(mockRepo)
+
+		// 既存アイテム
+		existing := &entity.Item{
+			ID:             1,
+			Name:           "ロレックス デイトナ",
+			Category:       "時計",
+			Brand:          "ROLEX",
+			PurchasePrice:  1500000,
+			PurchaseDate:   "2023-01-15",
+		}
+
+		// 更新後のアイテム
+		updated := &entity.Item{
+			ID:             1,
+			Name:           "ロレックス デイトナ 新モデル",
+			Category:       "時計",
+			Brand:          "ROLEX",
+			PurchasePrice:  1500000,
+			PurchaseDate:   "2023-01-15",
+		}
+
+		// モックの期待値
+		mockRepo.On("FindByID", ctx, int64(1)).Return(existing, nil)
+		mockRepo.On("Update", ctx, updated).Return(updated, nil)
+
+		newName := "ロレックス デイトナ 新モデル"
+		result, err := usecase.PatchItem(ctx, 1, &newName, nil, nil)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "ロレックス デイトナ 新モデル", result.Name)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("異常系: 存在しないID", func(t *testing.T) {
+		mockRepo := new(MockItemRepository)
+		usecase := NewItemUsecase(mockRepo)
+
+		mockRepo.On("FindByID", ctx, int64(999)).Return((*entity.Item)(nil), domainErrors.ErrItemNotFound)
+
+		newName := "新しい名前"
+		result, err := usecase.PatchItem(ctx, 999, &newName, nil, nil)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, domainErrors.ErrItemNotFound)
+		mockRepo.AssertExpectations(t)
+	})
 }

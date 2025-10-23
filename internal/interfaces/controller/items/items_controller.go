@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -149,4 +150,26 @@ func validateCreateItemInput(input usecase.CreateItemInput) []string {
 	}
 
 	return errs
+}
+
+
+func (ic *ItemHandler) PatchItem(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+
+	var req struct {
+		Name *string `json:"name"`
+		Brand *string `json:"brand"`
+		PurchasePrice *int `json:"purchase_price"`
+	}
+	item, err := ic.itemUsecase.PatchItem(c.Request().Context(), int64(id), req.Name, req.Brand, req.PurchasePrice)
+	if err != nil {
+		if errors.Is(err, domainErrors.ErrItemNotFound) {
+    	return c.JSON(http.StatusNotFound, map[string]string{"error": "Item not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal error"})
+	}
+	return c.JSON(http.StatusOK, item)
 }

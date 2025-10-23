@@ -14,6 +14,7 @@ type ItemUsecase interface {
 	CreateItem(ctx context.Context, input CreateItemInput) (*entity.Item, error)
 	DeleteItem(ctx context.Context, id int64) error
 	GetCategorySummary(ctx context.Context) (*CategorySummary, error)
+	PatchItem(ctx context.Context, id int64, name *string, brand *string, price *int) (*entity.Item, error)
 }
 
 type CreateItemInput struct {
@@ -131,4 +132,36 @@ func (u *itemUsecase) GetCategorySummary(ctx context.Context) (*CategorySummary,
 		Categories: summary,
 		Total:      total,
 	}, nil
+}
+
+
+func (u *itemUsecase) PatchItem(ctx context.Context, id int64, name *string, brand *string, price *int) (*entity.Item, error) {
+	if id <= 0 {
+		return nil, domainErrors.ErrInvalidInput
+	}
+
+	item, err := u.itemRepo.FindByID(ctx, id)
+	if err != nil {
+		if domainErrors.IsNotFoundError(err) {
+			return nil, domainErrors.ErrItemNotFound
+		}
+		return nil, fmt.Errorf("failed to retrieve item: %w", err)
+	}
+
+	if name != nil {
+		item.Name = *name
+	}
+	if brand != nil {
+		item.Brand = *brand
+	}
+	if price != nil {
+		item.PurchasePrice = *price
+	}
+
+	updatedItem, err := u.itemRepo.Update(ctx, item)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update item: %w", err)
+	}
+
+	return updatedItem, nil
 }
